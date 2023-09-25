@@ -1,0 +1,413 @@
+#--------------------------------- PLOTS --------------------------------------#
+################################################################################
+
+# packages ---------------------------------------------------------------------
+library(tidyverse)
+library(grid)
+library(rio)
+library(scales)
+library(pheatmap)
+
+# import dataset ---------------------------------------------------------------
+list <- import("data/list.rds")
+
+# daily
+cabinet.daily <- import("data/cabinet.daily.rds")
+faction.daily <- import("data/faction.daily.rds")
+
+# power position
+pp.parl <- import("data/pp.parl.rds")
+pp.cabinet <- import("data/pp.cabinet.rds")
+
+# regional representation day by day -------------------------------------------
+
+eastgerman_states <- c("Thüringen", "Brandenburg", "Berlin", "Sachsen",
+                       "Sachsen-Anhalt", "Mecklenburg-Vorpommern")
+
+westgerman_states <- c("Schleswig-Holstein", "Hamburg", "Bremen", "Niedersachsen",
+                       "Nordrhein-Westfalen", "Hessen", "Rheinland-Pfalz", 
+                       "Saarland", "Baden-Württemberg", "Bayern")
+
+german_states <- c("Thüringen", "Brandenburg", "Berlin", "Sachsen",
+                   "Sachsen-Anhalt", "Mecklenburg-Vorpommern", 
+                   "Schleswig-Holstein", "Hamburg", "Bremen", "Niedersachsen",
+                   "Nordrhein-Westfalen", "Hessen", "Rheinland-Pfalz", 
+                   "Saarland", "Baden-Württemberg", "Bayern")
+
+
+# origin kodieren
+origin <- list %>%
+  filter(id != "/wiki/Josef_Rebhan_(Politiker,_1937)-bw-10", birthplace != "CDU") %>% #Müssen wir nochmal anschauen
+  filter(id != "/wiki/Horst_Strecker-he-12", birthplace != "hessischer") %>%
+  mutate(born_germany = case_when(
+    birthplace.state %in% german_states ~ birthplace.state,
+    is.na(birthplace.state) ~ NA_character_,
+    TRUE ~ "Ausland")) %>%
+  mutate(origin = case_when(
+    born_germany == "Ausland" ~ "Ausland",
+    born_germany == landtag.state ~ "homeland",
+    born_germany %in% eastgerman_states ~ "anderes ost bl",
+    born_germany %in% westgerman_states ~ "anderes west bl",
+    is.na(born_germany) ~ NA_character_,
+    TRUE ~ "other")) %>%
+  drop_na(origin) %>%
+  select(id,origin) %>%
+  distinct()
+
+# daily dataset
+origin_daily <- faction.daily %>%
+  left_join(origin, by = "id") %>%
+  group_by(date, landtag.state.abb, origin) %>% 
+  summarise(count = n()) %>%
+  group_by(date, landtag.state.abb) %>%
+  drop_na(origin) %>%
+  mutate(share = count/sum(count)) %>%
+  filter(date >= "1990-01-01",
+         date <= "2019-12-31") %>% 
+  group_by(date, landtag.state.abb) %>%
+  mutate(sum_share = sum(share))
+
+# plotting ---------------------------------------------------------------------
+
+# create a vector of the eastern state abbreviations
+eastern_states <- c("be", "bb", "mv", "sn", "st", "th")
+
+# reorder the landtag.state.abb factor levels with the eastern states first
+origin_daily$landtag.state.abb <- factor(origin_daily$landtag.state.abb, levels = c(eastern_states, setdiff(unique(origin_daily$landtag.state.abb), eastern_states)))
+
+# Plot the data with the reordered factor levels
+regional_representation <- ggplot(data = origin_daily,
+       aes(x = date, y = share, group = origin, color = origin)) + 
+  geom_line() +
+  facet_wrap(~ landtag.state.abb,
+             nrow = 4) +
+  scale_color_manual(values = c("homeland" = "#E63946",
+                                "anderes west bl" = "#E59500", 
+                                "anderes ost bl" = "#002642",
+                                "Ausland" = "#7EA172"),
+                     breaks = c("homeland", "anderes west bl", "anderes ost bl", "Ausland"),
+                     labels = c("\nim selben Bundesland \n",
+                                "\nin einem (anderen) \nwestdt. Bundesland\n",
+                                "\nin einem (anderen) \nostdt. Bundesland\n",
+                                "\nim Ausland \n"),
+                     name = "Geboren...") +
+  theme_bw() +
+  theme(text = element_text(family = "Times New Roman"),
+        strip.text = element_text(size = 6),
+        axis.text.x = element_text(angle = 45, hjust = 1),
+        panel.spacing = unit(0, "lines"), # Set default panel spacing to 0
+        panel.spacing.x = unit(1, "lines")) + # Add horizontal spacing between columns
+  labs(x = "",
+       y = "",
+       color = "",
+       caption = "") +
+  scale_y_continuous(limits = c(0, .9),
+                     breaks = seq(0, .9, 0.2),
+                     labels = scales::percent_format(accuracy = 1))
+
+regional_representation
+# save plot
+ggsave("plots/regional_representation.png", plot = regional_representation, dpi = 500, width = 180, height = 135, units = "mm")
+
+
+
+# Table Landtag-Geburts-Bundesland Combinaitons --------------------------------
+df_patenländer_perc <- list %>%
+  mutate(born_germany = case_when(
+    birthplace.state %in% german_states ~ birthplace.state,
+    is.na(birthplace.state) ~ NA_character_,
+    TRUE ~ "Ausland")) %>%
+  distinct() %>%
+  select(id, landtag.state, born_germany) %>%
+  group_by(landtag.state, born_germany) %>%
+  tally() %>%
+  ungroup() %>%
+  complete(landtag.state, born_germany, fill = list(n = 0)) %>%
+  group_by(landtag.state) %>%
+  mutate(sum = sum(n),
+         perc = n / sum,
+         born_simple = case_when(landtag.state == born_germany ~ "homeland", TRUE ~ born_germany),
+         perc_adj = ifelse(perc > 0.4, 0.4, perc))
+
+
+
+df_patenländer_n <- list %>%
+  mutate(born_germany = case_when(birthplace.state %in% german_states ~ birthplace.state,
+                                  is.na(birthplace.state) ~ NA_character_,
+                                  TRUE ~ "Ausland"),
+         landtag.state = as.factor(landtag.state),
+         born_germany = as.factor(born_germany)) %>%
+  distinct() %>%
+  select(id,landtag.state, born_germany) %>%
+  group_by(landtag.state, born_germany, .drop = FALSE) %>%
+  tally() 
+
+# %>%
+#   pivot_wider(id_cols = landtag.state.abb, 
+#               names_from = born_germany, 
+#               values_from = n)
+
+
+# Plots ------
+plot.heat.herkunft_perc <- ggplot(df_patenländer_perc, aes(born_germany, landtag.state)) +
+  geom_tile(aes(fill = perc_adj), color = "black") +
+  geom_text(aes(label = paste0(round(perc * 100), "%")), color = "white", size = 3) +
+  scale_fill_gradient2(
+    low = "#a33749", 
+    high = "#498467", 
+    mid = "yellow", 
+    midpoint = 0.2, 
+    na.value = "grey", 
+    guide = "colourbar",
+    breaks = seq(0, 0.8, by = 0.1), # extend legend to 0.8
+    labels = scales::percent(seq(0, 0.8, by = 0.1)) # convert to percent
+  ) +
+  theme_minimal() +
+  labs(y = "Abgeordnete in diesen Landesparlamenten...", x = "...wurden hier geboren") +
+  theme(
+    axis.text.x = element_text(angle = 40, hjust = 1, size = 8),
+    axis.text.y = element_text(size = 8),
+    text = element_text(family = "Times New Roman"),
+    strip.text = element_text(size = 6),
+    legend.position = "none", # remove the legend
+    panel.background = element_rect(fill = "white"), # make plot panel background white
+    plot.background = element_rect(fill = "white")
+  )
+
+
+plot.heat.herkunft_perc
+ggsave(plot = plot.heat.herkunft_perc,
+       "plots/neue Plots/herkunft.prozent.heat.png",
+       dpi = 500, width = 180, height = 135, units = "mm")
+
+
+
+plot.heat.herkunft_sum <- ggplot(df_patenländer_n, aes(born_germany, landtag.state)) +
+  geom_tile(aes(fill = n), color = "black") +
+  geom_text(aes(label = n), color = "black", size = 3) +
+  scale_fill_gradient2(
+    low = "white", 
+    high = "red", 
+    mid = "yellow", 
+    midpoint = 300, 
+    na.value = "grey", 
+    guide = "colourbar",
+    breaks = seq(0, 0.8, by = 0.1), # extend legend to 0.8
+    labels = scales::percent(seq(0, 0.8, by = 0.1)) # convert to percent
+  ) +
+  theme_minimal() +
+  labs(y = "Abgeordnete in diesen Landesparlamenten...", x = "...wurden hier geboren") +
+  theme(
+    axis.text.x = element_text(angle = 40, hjust = 1, size = 8),
+    axis.text.y = element_text(size = 8),
+    text = element_text(family = "Times New Roman"),
+    strip.text = element_text(size = 6),
+    legend.position = "none", # remove the legend
+    panel.background = element_rect(fill = "white"), # make plot panel background white
+    plot.background = element_rect(fill = "white")
+  )
+
+
+plot.heat.herkunft_sum
+ggsave(plot = plot.heat.herkunft_sum,
+       "plots/neue Plots/herkunft.n.heat.png",
+       dpi = 500, width = 180, height = 135, units = "mm")
+
+# erste Landtage in den neuen Bundesländern-------------------------------------
+df_ost <- list %>%
+  mutate(born_germany = case_when(
+    birthplace.state %in% german_states ~ birthplace.state,
+    is.na(birthplace.state) ~ NA_character_,
+    TRUE ~ "Ausland")) %>%
+  distinct() %>%
+  filter(landtag.state.abb %in% c("bb", "sn", "st", "th", "mv")) %>%
+  select(id, landtag.state, born_germany, electoralperiod) %>%
+  group_by(landtag.state, born_germany, electoralperiod) %>%
+  tally() %>%
+  ungroup() %>%
+  complete(landtag.state, born_germany, fill = list(n = 0)) %>%
+  group_by(landtag.state, electoralperiod) %>%
+  mutate(sum = sum(n),
+         perc = n / sum,
+         born_simple = case_when(landtag.state == born_germany ~ "homeland", TRUE ~ born_germany),
+         perc_adj = ifelse(perc > 0.4, 0.4, perc))
+
+
+
+plot.heat.herkunft_perc_1_OstWPs <- ggplot(df_ost %>% filter(perc > .05), 
+                                           aes(electoralperiod, perc, 
+                                               color = born_germany, linetype = born_germany)) +
+  geom_line() +
+  theme_bw() +
+  facet_wrap(~landtag.state)+
+  labs(y = "", x = "",
+       title = "Geburtsorte der Abgeordneten in den Landtagen der neuen Bundesländer (WP-weise)",
+       subtitle = "Nur Werte von Herkunfts-Bundesländern über 5% enthalten") +
+  theme(axis.text.y = element_text(size = 8),
+    text = element_text(family = "Times New Roman"),
+    strip.text = element_text(size = 6),
+    panel.background = element_rect(fill = "white"), # make plot panel background white
+    plot.background = element_rect(fill = "white")
+  )
+
+plot.heat.herkunft_perc_1_OstWPs
+ggsave(plot = plot.heat.herkunft_perc_1_OstWPs,
+       "plots/neue Plots/Herkunft_Ost-MdLs.png",
+       dpi = 500, width = 180, height = 135, units = "mm")
+
+
+
+
+
+# Powerpositions Ost (erst aufschlussreich mit Geburtsorten der Minister:innen und Reg-Chefs ohne Parlamentsmandat)
+abb.full <- list %>% distinct(landtag.state.abb, landtag.state)
+
+
+df_Herkunft_cab <- cabinet.daily %>%
+  mutate(born_germany = case_when(
+    birthplace.state %in% german_states ~ birthplace.state,
+    is.na(birthplace.state) ~ NA_character_,
+    TRUE ~ "Ausland")) %>%
+  left_join(abb.full, by = "landtag.state.abb") %>%
+  mutate(origin = case_when(
+    born_germany == "Ausland" ~ "Ausland",
+    born_germany == landtag.state ~ "homeland",
+    born_germany %in% eastgerman_states ~ "anderes ost bl",
+    born_germany %in% westgerman_states ~ "anderes west bl",
+    is.na(born_germany) ~ NA_character_,
+    TRUE ~ "other")) %>%
+  #left_join(origin %>% select(id, origin), by = "id") %>%
+  mutate(parl_ost_west = case_when(landtag.state.abb %in% c("bb", "sn", "st", "th", "mv") ~ 
+                                "Ostdeutsche Landesregierungen",
+                              T ~ 
+                                "Westdeutsche Landesregierungen")) %>%
+  group_by(landtag.state.abb, origin, date, parl_ost_west) %>%
+  tally() %>%
+  group_by(landtag.state.abb, date, parl_ost_west) %>%
+  mutate(sum = sum(n),
+         perc = n/sum) %>%
+  arrange(date) 
+  
+
+# Daily df
+geboren <- c("homeland", "anderes west bl", "anderes ost bl", "Ausland")
+dates <- seq(min(df_Herkunft_cab$date),
+             max(df_Herkunft_cab$date),
+             by = "1 day")
+
+df_daily_cabinet_regional <- tibble(date = dates) %>%
+  crossing(origin = geboren,
+           landtag.state.abb = unique(df_Herkunft_cab$landtag.state.abb)) %>%
+  mutate(perc = NA) %>%
+  left_join(df_Herkunft_cab, by = c("origin", "date", "landtag.state.abb")) %>%
+  select(date, origin, landtag.state.abb, perc = perc.y)
+
+
+plot.minister.regional <- ggplot(df_daily_cabinet_regional, 
+       aes(x = date, y = perc, color = origin))+
+  geom_line()+
+  facet_wrap(~landtag.state.abb,
+             nrow = 4) +
+  scale_color_manual(values = c("homeland" = "#E63946",
+                                "anderes west bl" = "#E59500", 
+                                "anderes ost bl" = "#002642",
+                                "Ausland" = "#7EA172"),
+                     breaks = c("homeland", "anderes west bl", "anderes ost bl", "Ausland"),
+                     labels = c("\nim selben Bundesland \n",
+                                "\nin einem (anderen) \nwestdt. Bundesland\n",
+                                "\nin einem (anderen) \nostdt. Bundesland\n",
+                                "\nim Ausland \n"),
+                     name = "Geboren...") +
+  theme_bw() +
+  theme(text = element_text(family = "Times New Roman"),
+        strip.text = element_text(size = 6),
+        axis.text.x = element_text(angle = 45, hjust = 1),
+        panel.spacing = unit(0, "lines"), # Set default panel spacing to 0
+        panel.spacing.x = unit(1, "lines")) + # Add horizontal spacing between columns
+  labs(x = "",
+       y = "",
+       color = "",
+       caption = "") +
+  scale_y_continuous(labels = scales::percent_format(accuracy = 1))
+
+  
+plot.minister.regional
+ggsave(plot = plot.minister.regional,
+       "plots/neue Plots/Herkunft_Cabinetts_complete.png",
+       dpi = 500, width = 180, height = 135, units = "mm")
+
+
+
+
+# Just Ost/West Minister
+
+df_Herkunft_cab_ostwest <- cabinet.daily %>%
+  mutate(born_germany = case_when(
+    birthplace.state %in% german_states ~ birthplace.state,
+    is.na(birthplace.state) ~ NA_character_,
+    TRUE ~ "Ausland")) %>%
+  left_join(abb.full, by = "landtag.state.abb") %>%
+  mutate(origin = case_when(
+    born_germany == "Ausland" ~ "Ausland",
+    born_germany == landtag.state ~ "homeland",
+    born_germany %in% eastgerman_states ~ "anderes ost bl",
+    born_germany %in% westgerman_states ~ "anderes west bl",
+    is.na(born_germany) ~ NA_character_,
+    TRUE ~ "other")) %>%
+  #left_join(origin %>% select(id, origin), by = "id") %>%
+  mutate(parl_ost_west = case_when(landtag.state.abb %in% c("bb", "sn", "st", "th", "mv") ~ 
+                                     "Ostdeutsche Landesregierungen",
+                                   T ~ 
+                                     "Westdeutsche Landesregierungen")) %>%
+  group_by(origin, date, parl_ost_west) %>%
+  tally() %>%
+  group_by(date, parl_ost_west) %>%
+  mutate(sum = sum(n),
+         perc = n/sum) %>%
+  arrange(date) %>%
+  filter(!(date < as.Date("1990-12-01") & parl_ost_west == "Ostdeutsche Landesregierungen"),
+         !(date < as.Date("1990-01-01") & parl_ost_west == "Westdeutsche Landesregierungen"),
+         date <= "2020-01-01")
+
+
+
+
+
+
+
+plot.minister.ost_west <- ggplot(df_Herkunft_cab_ostwest, 
+                                 aes(x = date, y = perc, color = origin))+
+  geom_line()+
+  facet_wrap(~parl_ost_west,
+             nrow = 4) +
+  scale_color_manual(values = c("homeland" = "#E63946",
+                                "anderes west bl" = "#E59500", 
+                                "anderes ost bl" = "#002642",
+                                "Ausland" = "#7EA172"),
+                     breaks = c("homeland", "anderes west bl", "anderes ost bl", "Ausland"),
+                     labels = c("\nim selben Bundesland \n",
+                                "\nin einem (anderen) \nwestdt. Bundesland\n",
+                                "\nin einem (anderen) \nostdt. Bundesland\n",
+                                "\nim Ausland \n"),
+                     name = "Geboren...") +
+  theme_bw() +
+  theme(text = element_text(family = "Times New Roman"),
+        strip.text = element_text(size = 6),
+        axis.text.x = element_text(angle = 45, hjust = 1),
+        panel.spacing = unit(0, "lines"), # Set default panel spacing to 0
+        panel.spacing.x = unit(1, "lines")) + # Add horizontal spacing between columns
+  labs(x = "",
+       y = "",
+       color = "",
+       caption = "") +
+  scale_y_continuous(labels = scales::percent_format(accuracy = 1))+
+  scale_x_date(expand = c(0, 0), 
+               breaks = as.Date(c("1990-01-01", "2000-01-01", "2010-01-01", "2020-01-01")),
+               labels = c("1990", "2000", "2010", "2020"))
+
+
+
+ggsave(plot = plot.minister.ost_west,
+       "plots/neue Plots/Kabinette_NUR_OSTWEST.png",
+       dpi = 500, width = 180, height = 135, units = "mm")
+

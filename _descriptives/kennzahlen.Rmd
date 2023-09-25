@@ -1,0 +1,210 @@
+---
+title: "Wichtige Deskriptive Kennzahlen im Datensatz"
+author: "Daniel"
+wordcount: ""
+appendices: [""]
+bibliography: ""
+titlepage: true
+numbersections: false
+output: draft::working_paper
+knit: draft::knit_with_appendices
+---
+
+```{r packages-data, echo=FALSE, message=FALSE, warning=FALSE}
+# 1) Packages ------------------------------------------------------------------
+
+library(rio)
+library(tidyverse)
+
+# 1) Data ----------------------------------------------------------------------
+
+list <- import("../data/list.rds")
+faction <- import("../data/faction.rds")
+faction.daily <- import("../data/faction.daily.rds")
+cabinet.daily <- import("../data/cabinet.daily.rds")
+```
+
+## Anzahl Wahlperioden
+
+```{r legperiods, message=FALSE, warning=FALSE}
+legperiods <- list %>%
+  distinct(landtag.state, electoralperiod)
+```
+
+Insgesamt sind **`r nrow(legperiods)`** Wahlperioden in dem Datensatz.
+
+## Anzahl der Personen
+
+```{r mdls, message=FALSE, warning=FALSE}
+mdls <- list %>%
+  distinct(name.wikitag)
+```
+
+Insgesamt sind **`r nrow(mdls)`** Personen in dem Datensatz.
+
+## Jung und Alt
+
+```{r alter, message=FALSE, warning=FALSE}
+alter <- faction.daily %>%
+  mutate(age = as.numeric(date-birthdate)/365, units = "years")
+
+# Find the youngest and oldest person using filter and top_n
+youngest_person <- alter %>%
+  arrange(age) %>%
+  slice(1)
+
+oldest_person <- alter %>%
+  arrange(desc(age)) %>%
+  slice(1)
+```
+
+Die jüngste Person in einem Landtag zwischen 1990 und 2020 war Julia Bonk die für Linke in der 4 Wahlperiode im Sächsischen Landtag saß. Bei Amtsantritt war sie **`r round(youngest_person$age, 1)`** Jahre alt.
+
+Die älteste Person in einem Landtag zwischen 1990 und 2020 war Charlotte Fera die für die CDU in der 12 Wahlperiode in der Hamburgischen Bürgerschaft saß. Beim letzten Tag im Amt war sie **`r round(oldest_person$age, 1)`** Jahre alt.
+
+## Landtags Hopper
+
+```{r landtagshopper, message=FALSE, warning=FALSE}
+landtagshopper <- list %>%
+  group_by(name.wikitag) %>%
+  mutate(num_landtag_states = n_distinct(landtag.state)) %>%
+  filter(num_landtag_states >= 2) %>%
+  ungroup()
+```
+
+Es gibt keine Person die in drei verschiedenen Landtagen saß, aber **10** Personen die in zwei Landtagen saßen.
+
+## Fraktions Hopper
+
+```{r fraktionshopper, message=FALSE, warning=FALSE}
+fraktionshopper <- faction %>%
+  group_by(id) %>%
+  mutate(num_factions = n_distinct(fraction)) %>%
+  filter(num_factions >= 2) %>%
+  ungroup()
+```
+
+Gerhard Mitschke hält den Rekord in Fraktionswechsel **(6 mal in einer Wahlperiode)**.
+CDU - Freie Fraktion - Fraktionslos - DSU - DS Fraktion - fraktionslos - FUA.
+
+Die Daten hier kommen auch direkt vom Landtag auf Wikipedia sind die Wechsel von ihm nicht so detailliert gelistet.
+
+## Längste Zeit im Landtag verbracht
+
+```{r mandatslange, message=FALSE, warning=FALSE}
+name <- faction %>%
+  select(id, name.wikitag)
+
+most_rows_person <- faction.daily %>%
+  left_join(name, by = "id") %>% 
+  count(name.wikitag, sort = TRUE) %>%
+  slice(1)
+```
+
+Christop Schulze ist mit **`r most_rows_person$n`** Tagen im Landtag Rekordhalter für das längste Mandat.
+
+Er saß von Oktober 2019 bis zum September 2019 durchgehend im Landtag Brandenburg.
+
+
+
+## Nachrücker:innen & vorzeitig usgeschiedene Abgeordnete
+
+```{r Anzahl Nachrücker:innen, message=F, warning=F}
+term.info <- list %>%
+  distinct(landtag.state.abb, landtag.state, electoralperiod, term.start, term.end)
+
+nachrücker <- faction %>%
+  group_by(id) %>%
+  arrange(start.date) %>% 
+  slice_min(start.date) %>%
+  distinct(id, name.wikitag, start.date, landtag.state.abb, electoralperiod, fraction.id) %>%
+  left_join(term.info, by = c("landtag.state.abb", "electoralperiod")) %>%
+  filter(start.date > term.start) %>%
+  nrow()
+
+ausgeschieden <- faction %>%
+  group_by(id) %>%
+  arrange(start.date) %>% 
+  slice_max(end.date) %>%
+  distinct(id, name.wikitag, start.date, end.date, landtag.state.abb, electoralperiod, fraction.id) %>%
+  left_join(term.info, by = c("landtag.state.abb", "electoralperiod")) %>%
+  filter(end.date + 1 < term.end) %>%
+  nrow()
+```
+
+Im Datensatz sind **`r ausgeschieden`** vorzeitig ausgeschiedene Abgeordnete sowie **`r nachrücker`** Nachrücker:innen enthalten.
+
+## Fraktionswechsel
+``` {r Anzahl Fraktionswechsel, message=F, warning=F}
+
+frakwechsel <- faction.daily
+frakwechsel$type <- NA
+frakwechsel$old <- NA
+for (i in 2:nrow(frakwechsel)) {
+  if (frakwechsel$id[i] == frakwechsel$id[i-1] && frakwechsel$fraction.id[i] != frakwechsel$fraction.id[i-1]){
+    frakwechsel$type[i] <- "Fraktionswechsel"
+    frakwechsel$old[i] <-frakwechsel$fraction.id[i-1]
+  }
+}
+
+frakwechsel %>%
+  filter(type == "Fraktionswechsel") %>%
+  nrow()
+
+```
+
+## Frauenanteil in AfD-Fraktionen
+``` {r Frauenanteil in der ersten AfD-Fraktion (Sachsen, 2014), message=F, warning=F}
+afd_sn_14 <- faction.daily %>%
+  filter(landtag.state.abb == "sn", fraction.id == "AfD", date == as.Date("2014-09-29")) %>%
+  group_by(gender) %>%
+  tally() %>%
+  mutate(sum = sum(n), #ACHTUNG: Hier ist noch ein Datenfehler, eigentlich sind es 5 von 14!
+         perc = n/sum)
+```
+
+In der ersten AfD-Fraktion in einem Landesparlament (Sachsen, 2014) waren unter den 14 Abgeordneten 5 Frauen.
+
+``` {r, message=F, warning=F}
+daily_shares_afd <- faction.daily %>%
+  filter(fraction.id == "AfD") %>%
+  group_by(landtag.state.abb, gender, date) %>%
+  tally() %>%
+  group_by(landtag.state.abb, date) %>%
+  mutate(sum = sum(n),
+         perc = n/sum,
+         Prozent = paste(round(n/sum*100), "%", sep = "")) %>%
+  filter(gender == "female")
+
+lowest_ever <- daily_shares_afd %>%
+  arrange(perc)
+```
+
+## MPs
+```{r}
+max_female_MPs <- cabinet.daily %>%
+  filter(position.clean == "Regierungsoberhaupt") %>%
+  group_by(date, gender) %>%
+  tally() %>%
+  group_by(date) %>%
+  mutate(sum = sum(n),
+         perc = n/sum) %>%
+  filter(gender == "female") %>%
+  arrange(perc)
+
+names <- cabinet.daily %>%
+  filter(position.clean == "Regierungsoberhaupt", gender == "female", date == as.Date("2018-03-14"))
+```
+
+## Homegrown
+```{r}
+i <- faction.daily %>%
+  filter(landtag.state.abb == "nw") %>%
+  left_join(list %>% select(id, birthplace.state), by = "id") %>%
+  group_by(electoralperiod, birthplace.state, date) %>%
+  tally() %>%
+  group_by(date) %>%
+  mutate(sum = sum(n),
+         perc = n/sum) %>%
+  filter(birthplace.state == "Nordrhein-Westfalen")
+```

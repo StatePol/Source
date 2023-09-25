@@ -1,0 +1,515 @@
+---
+title: "StatePol"
+subtitle: "*Deskriptive Repräsentation von Gender, Alter und Herkunft in den Landesparlamenten und -regierungen*"
+author:
+  - name: Elias \ Koch
+    orcid: 0009-0000-3341-219X
+    email: elias.koch@student.hu-berlin.de
+  - name: Daniel \ Kuhlen
+    orcid: 0009-0009-4863-6458
+    email: kuhlenda@hu-berlin.de
+  - name: Jochen \ Müller
+    orcid: 0000-0003-4021-7442
+    email: jochen.mueller@uni-greifswald.de
+  - name: Christian Stecker
+    orcid: 0000-0001-9577-7151
+    email: christian.stecker@tu-darmstadt.de
+format: revealjs
+editor: visual
+self-contained: true
+---
+
+```{r packages, echo=FALSE}
+# packages
+library(rio)
+library(tidyverse)
+```
+
+```{r data}
+# daily
+cabinet.daily <- import("../_data/output/cabinet.daily.rds")
+faction.daily <- import("../_data/output/faction.daily.rds")
+
+# power position
+pp.parl <- import("../_data/output/pp.parl.rds")
+pp.cabinet <- import("../_data/output/pp.cabinet.rds")
+
+# other
+list <- import("../_data/output/list.rds")
+cabinet <- import("../_data/output/cabinet.rds")
+age <- import("../_data/output/list.rds") %>% select(id, birthdate)
+```
+
+# Deskriptive Repräsentation
+
+## Deskriptive Repräsentation
+
+::: columns
+::: {.column width="60%"}
+<img src="_pngs/tagesschau.png" style="max-width: 100%; height: auto;"/>
+:::
+
+::: {.column width="40%"}
+<img src="_pngs/norris_lovenduski.png" style="max-width: 100%; height: auto;"/>
+:::
+:::
+
+## Bestehende Datenquellen
+
+-   Datenbanken
+    -   legislatoR ([Munzert & Göbel, 2022](https://github.com/saschagobel/legislatoR))
+    -   Parliaments Day-by-Day ([Turner-Zwinkels et al., 2021](https://onlinelibrary.wiley.com/doi/epdf/10.1111/lsq.12359))
+    -   The Danish legislators database ([Klint et al., 2023](https://www.sciencedirect.com/science/article/pii/S026137942300046X))
+-   Replikationsdaten
+    -   [Kroeber (2023)](https://academic.oup.com/pa/advance-article/doi/10.1093/pa/gsad011/7161785), [Höhmann (2023)](https://www.google.com/url?sa=t&rct=j&q=&esrc=s&source=web&cd=&ved=2ahUKEwiaieOot6KBAxUrVPEDHR7tDH0QFnoECBMQAQ&url=https%3A%2F%2Fwww.cambridge.org%2Fcore%2Fjournals%2Feuropean-political-science-review%2Farticle%2Fpolitical-parties-issue-salience-and-the-appointment-of-women-cabinet-members%2FBD7A90977E2A3FA7CBE81A350BD4612D&usg=AOvVaw3tDtdcbsKttt1krN3943nv&opi=89978449), [Stockemer & Sundström (2018)](https://www.cambridge.org/core/journals/european-political-science-review/article/age-representation-in-parliaments-can-institutions-pave-the-way-for-the-young/C68F5A9F0A26696241914CAA22B5086B)
+
+## Limitationen bestehender Datenquellen
+
+1.  Nutzbarkeit
+2.  Umfang
+3.  Beobachtungsebene
+
+# StatePol: Eine neue Datenquelle
+
+## StatePol: Eine neue Datenquelle {.scrollable}
+
+-   Landesparlamente
+    -   111 Wahlperioden in den 16 Landesparlamenten seit 1990
+    -   6977 individuelle Abgeordnete (mit Funktionen)
+        -   21.517.423 tagesweise Beobachtungen
+-   Landesregierungen
+    -   148 Kabinette
+    -   920 individuelle Kabinettsmitglieder (mit Funktionen)
+        -   2.223.995 tagesweise Beobachtungen
+
+## Struktur
+
+![](_pngs/datensatz_struktur.png){fig-align="center"}
+
+## Woher kommen die Daten? {.scrollable}
+
+Landtage ![](_pngs/wikipedia_landtag.png){fig-align="center"}
+
+Kabinette ![](_pngs/wikipedia_kabinett.png){fig-align="center"}
+
+# Ein Blick in die Daten
+
+Deskriptive Repräsentation in den deutschen Landesparlamenten und -regierungen
+
+## Gender
+
+Frauenanteil in den Fraktionen der Landesparlamente
+
+```{r, gendershare_faction}
+# gender comp
+gender.comp <- faction.daily %>%
+  group_by(date, gender) %>%
+  tally() %>%
+  group_by(date) %>%
+  mutate(sum = sum(n),
+         percentage = n/sum,
+         Durchschnitt = "Insg.") %>%
+  filter(date >= "1990-01-01",
+         date <= "2019-12-31",
+         gender == "female")
+
+# daily pp.parl
+pp.parl.daily <- pp.parl %>%
+  drop_na(id, term.start, term.end) %>%
+  filter(start.date <= end.date) %>%
+  mutate(date = map2(term.start, term.end, seq, by = 1, units = "day")) %>%
+  unnest(date)
+
+# datawrangling
+gender.faction <- faction.daily %>%
+  mutate(fraction.id = recode(fraction.id,
+                              "CSU" = "CDU/CSU",
+                              "CDU" = "CDU/CSU")) %>% 
+  group_by(date, fraction.id, gender, .drop = FALSE) %>% 
+  tally() %>%
+  group_by(date, fraction.id) %>%
+  mutate(sum = sum(n),
+         percentage = n/sum) %>%
+  filter(fraction.id %in% c("AfD", "SPD", "FDP", 
+                            "GRÜNE", "LINKE", "CDU/CSU"),
+         gender == "female",
+         date >= "1990-01-01",
+         date <= "2020-01-01")
+
+# plotting
+ggplot() +
+  geom_line(data = gender.faction, aes(x = date, y = percentage, color = fraction.id)) +
+  geom_smooth(data = gender.comp, se = FALSE, size = 0.5, linetype = "dotted",
+              aes(x = date, y = percentage, color = Durchschnitt)) +
+  geom_hline(yintercept = 0.5, size = .2, linetype = "dashed") +
+  scale_color_manual(values = c("Insg." = "#000000", 
+                                "Durchschnitt" = "black",
+                                "SPD" = "#E3000F", 
+                                "CDU/CSU" = "#000000",
+                                "GRÜNE" = "#1AA037", 
+                                "AfD" = "#0489DB",
+                                "FDP" = "#FFEF00", 
+                                "LINKE" = "deeppink"),
+                     breaks = c("Insg.", "CDU/CSU", "SPD", "GRÜNE", "LINKE", "FDP", "AfD")) +
+  theme_minimal() +
+  theme(plot.margin = margin(t = 2.5, r = 5.5, b = 0, l = 5.5, unit = "pt"), # Modify plot margins
+        plot.title = element_blank(), # Ensure no title is displayed
+        plot.subtitle = element_blank(), # Ensure no subtitle is displayed
+        plot.caption = element_blank()) +
+  labs(x = "",
+       y = "",
+       color = "",
+       title =  "",
+       subtitle = "",
+       caption = "") +
+  guides(color = guide_legend(override.aes = list(linetype = c("dotted", rep("solid", 6))))) +
+  scale_y_continuous(breaks = seq(0, 1, 0.1),
+                     labels = scales::percent_format(accuracy = 1)) +
+  scale_x_date(expand = c(0, 0), 
+               breaks = as.Date(c("1990-01-01", "2000-01-01", "2010-01-01", "2020-01-01")),
+               labels = c("1990", "2000", "2010", "2020")) +
+  coord_cartesian(ylim = c(0, .55))
+```
+
+## Gender
+
+Frauenanteil in den Landesparlamenten und -regierungen
+
+```{r gender_position}
+# datawrangling
+pp.parl.gendershare <- pp.parl.daily %>% 
+  select(id, party, position, gender, date) %>%
+  mutate(position = recode(position,
+                           "Fraktionsvorstand" = "Fraktionsführung",
+                           "Minister/in" = "Minister:in")) %>% 
+  filter(party %in% c("AfD", "CSU","SPD", "CDU",
+                      "FDP", "GRÜNE", "LINKE")) %>% 
+  group_by(date, position, gender, .drop = FALSE) %>% 
+  tally() %>%
+  ungroup() %>%
+  complete(date, position, gender, fill = list(n = 0)) %>%
+  group_by(date, position) %>% 
+  mutate(sum = sum(n),
+         percentage = round(n/sum, 2)) %>%
+  filter(gender == "female",
+         date >= "1990-01-01",
+         date <= "2020-01-01",
+         sum != 0)
+
+
+pp.cabinet.gendershare <- pp.cabinet %>%
+  filter(position.clean != "Stellvertretendes Regierungsoberhaupt") %>%
+  mutate(position.clean = recode(position.clean,
+                                 "Minister/in" = "Minister:in")) %>% 
+  group_by(date, gender, position.clean) %>% 
+  tally() %>% 
+  ungroup() %>%
+  complete(date, gender, position.clean, fill = list(n = 0)) %>%  # Ensure all combinations are represented
+  group_by(date, position.clean) %>% 
+  mutate(sum = sum(n),
+         percentage = round(n/sum, 2)) %>%  # Convert to percentage
+  filter(gender == "female",
+         date >= "1990-01-01",
+         date <= "2020-01-01")
+
+# plotting
+ggplot() +
+    geom_smooth(data = pp.cabinet.gendershare,
+                se = FALSE,
+                linewidth = .8,
+                aes(x = date, y = percentage, color = position.clean)) +
+    geom_smooth(data = pp.parl.gendershare,
+                se = FALSE,
+                linewidth = .8,
+                aes(x = date, y = percentage, color = position)) +
+    geom_point(data = pp.cabinet.gendershare,
+               size = .05,
+               alpha = .01,
+               aes(x = date, y = percentage, color = position.clean)) +
+    geom_point(data = pp.parl.gendershare,
+                size = .05,
+               alpha = .01,
+               aes(x = date, y = percentage, color = position)) +
+    geom_smooth(data = gender.comp,
+                se = FALSE,
+                linewidth = .5,
+                linetype = "dotted",
+                aes(x = date, y = percentage, color = Durchschnitt)) +
+    geom_hline(yintercept = .5, size = .2, linetype = "dashed") +
+    scale_color_manual(values = c("Insg." = "black",
+                                  "Ausschussvorsitz" = "#002642",
+                                  "Fraktionsführung" = "#E59500",
+                                  "Präsidium" = "#107E7D",
+                                  "Minister:in" = "#E63946",
+                                  "Regierungsoberhaupt" = "#7EA172"),
+                       breaks = c("Insg.", "Präsidium", "Ausschussvorsitz", "Fraktionsführung", "Regierungsoberhaupt", "Minister:in")) +
+    theme_minimal() +
+    theme(plot.margin = margin(t = 2.5, r = 5.5, b = 0, l = 5.5, unit = "pt"), 
+          plot.title = element_blank(), 
+          plot.subtitle = element_blank(),
+          plot.caption = element_blank()) +
+    labs(x = "",
+         y = "",
+         color = "") +
+    guides(color = guide_legend(override.aes = list(linetype = c("dotted", rep("solid", 5))))) +
+    scale_y_continuous(breaks = seq(0, 0.6, 0.1),
+                       labels = scales::percent_format(accuracy = 1)) +
+    scale_x_date(expand = c(0, 0), 
+                 breaks = as.Date(c("1990-01-01", "2000-01-01", "2010-01-01", "2020-01-01")),
+                 labels = c("1990", "2000", "2010", "2020")) +
+    coord_cartesian(ylim = c(0, 0.55))
+```
+
+## Alter
+
+Durchschnittsalter der Fraktionen in den Landesparlamenten
+
+```{r age_faction}
+# complete
+age.comp <- faction.daily %>%
+  mutate(age = as.numeric(date-birthdate)/365, units = "years",
+         fraction.id = recode(fraction.id, "CSU" = "CDU/CSU",
+                              "CDU" = "CDU/CSU")) %>%
+  drop_na(age) %>%
+  group_by(date) %>%
+  summarise(mean_age = mean(age)) %>%
+  filter(date <="2020-01-01",
+         date >= "1990-01-01") %>%
+  mutate(average = "Insg.")
+
+# by party
+age.party <- faction.daily %>%
+  mutate(age = as.numeric(date-birthdate)/365, units = "years",
+         fraction.id = recode(fraction.id, "CSU" = "CDU/CSU",
+                              "CDU" = "CDU/CSU")) %>%
+  drop_na(age) %>%
+  group_by(date, fraction.id) %>%
+  summarise(mean_age = mean(age)) %>%
+  filter(fraction.id %in% c("SPD", "AfD", "CDU/CSU", "FDP", "GRÜNE", "LINKE"),
+         date <="2020-01-01",
+         date >= "1990-01-01")
+
+# plotting
+ggplot()+
+  geom_line(data = age.party, aes(x = date, y = mean_age, color = fraction.id))+
+  geom_smooth(data = age.comp, se = FALSE, size = 0.5, linetype = "dotted",
+              aes(x = date, y = mean_age, color = average))+
+    scale_color_manual(values = c("Insg." = "#000000", 
+                                  "Durchschnitt" = "black",
+                                  "SPD" = "#E3000F", 
+                                  "CDU/CSU" = "#000000",
+                                  "GRÜNE" = "#1AA037", 
+                                  "AfD" = "#0489DB",
+                                  "FDP" = "#FFEF00", 
+                                  "LINKE" = "deeppink"),
+                       breaks = c("Insg.", "CDU/CSU", "SPD", "GRÜNE", "LINKE", "FDP", "AfD")) +
+  theme_minimal()+
+  theme(plot.margin = margin(t = 2.5, r = 5.5, b = 0, l = 5.5, unit = "pt"),
+        plot.title = element_blank(),
+        plot.subtitle = element_blank(),
+        plot.caption = element_blank()) +
+  guides(color = guide_legend(override.aes = list(linetype = c("dotted", rep("solid", 6))))) +
+  scale_x_date(expand = c(0, 0),
+               breaks = as.Date(c("1990-01-01", "2000-01-01", "2010-01-01", "2020-01-01")),
+               labels = c("1990", "2000", "2010", "2020")) +
+  labs(x = "",
+       y = "",
+       color = "",
+       subtitle = "")
+```
+
+## Herkunft
+
+Anteil von Ost- und Westdeutschen in den Landesparlamenten
+
+```{r herkunft_landesparlamente}
+# base level wrangling ---------------------------------------------------------
+
+eastgerman_states <- c("Thüringen", "Brandenburg", "Berlin", "Sachsen",
+                       "Sachsen-Anhalt", "Mecklenburg-Vorpommern")
+
+westgerman_states <- c("Schleswig-Holstein", "Hamburg", "Bremen", "Niedersachsen",
+                       "Nordrhein-Westfalen", "Hessen", "Rheinland-Pfalz", 
+                       "Saarland", "Baden-Württemberg", "Bayern")
+
+german_states <- c("Thüringen", "Brandenburg", "Berlin", "Sachsen",
+                   "Sachsen-Anhalt", "Mecklenburg-Vorpommern", 
+                   "Schleswig-Holstein", "Hamburg", "Bremen", "Niedersachsen",
+                   "Nordrhein-Westfalen", "Hessen", "Rheinland-Pfalz", 
+                   "Saarland", "Baden-Württemberg", "Bayern")
+
+
+# origin kodieren
+origin <- list %>%
+  filter(id != "/wiki/Josef_Rebhan_(Politiker,_1937)-bw-10", birthplace != "CDU") %>% #Müssen wir nochmal anschauen
+  filter(id != "/wiki/Horst_Strecker-he-12", birthplace != "hessischer") %>%
+  mutate(born_germany = case_when(
+    birthplace.state %in% german_states ~ birthplace.state,
+    is.na(birthplace.state) ~ NA_character_,
+    TRUE ~ "Ausland")) %>%
+  mutate(origin = case_when(
+    born_germany == "Ausland" ~ "Ausland",
+    born_germany == landtag.state ~ "homeland",
+    born_germany %in% eastgerman_states ~ "anderes ost bl",
+    born_germany %in% westgerman_states ~ "anderes west bl",
+    is.na(born_germany) ~ NA_character_,
+    TRUE ~ "other")) %>%
+  drop_na(origin) %>%
+  select(id,origin) %>%
+  distinct()
+
+# daily dataset
+origin_daily <- faction.daily %>%
+  left_join(origin, by = "id") %>%
+  group_by(date, landtag.state.abb, origin) %>% 
+  summarise(count = n()) %>%
+  group_by(date, landtag.state.abb) %>%
+  drop_na(origin) %>%
+  mutate(share = count/sum(count)) %>%
+  filter(date >= "1990-01-01",
+         date <= "2019-12-31") %>% 
+  group_by(date, landtag.state.abb) %>%
+  mutate(sum_share = sum(share))
+
+abb.full <- list %>%
+  distinct(landtag.state.abb, landtag.state)
+
+df_Herkunft_parl_ostwest <- list %>%
+  mutate(born_germany = case_when(
+    birthplace.state %in% german_states ~ birthplace.state,
+    is.na(birthplace.state) ~ NA_character_,
+    TRUE ~ "Ausland")) %>%
+  left_join(abb.full, by = "landtag.state.abb") %>%
+  mutate(origin = case_when(
+    born_germany == "Ausland" ~ "Ausland",
+    born_germany %in% eastgerman_states ~ "Ostdeutschland",
+    born_germany %in% westgerman_states ~ "Westdeutschland",
+    is.na(born_germany) ~ NA_character_,
+    TRUE ~ "other")) %>%
+  filter(term.start <= term.end) %>%
+  mutate(date = map2(term.start, term.end, seq, by = 1, units = "day")) %>%
+  unnest(date)%>%
+  #left_join(origin %>% select(id, origin), by = "id") %>%
+  mutate(parl_ost_west = case_when(landtag.state.abb %in% c("bb", "sn", "st", "th", "mv") ~ 
+                                     "Ostdeutsche Landesparlamente",
+                                   T ~ 
+                                     "Westdeutsche Landesparlamente")) %>%
+  group_by(origin, date, parl_ost_west) %>%
+  tally() %>%
+  group_by(date, parl_ost_west) %>%
+  mutate(sum = sum(n),
+         perc = n/sum) %>%
+  arrange(date) %>%
+  filter(!(date < as.Date("1990-12-01") & parl_ost_west == "Ostdeutsche Landesparlamente"),
+         !(date < as.Date("1990-01-01") & parl_ost_west == "Westdeutsche Landesparlamente"),
+         date <= "2020-01-01") %>%
+  mutate(parl_ost_west = factor(parl_ost_west,
+                                levels = c("Westdeutsche Landesparlamente",
+                                           "Ostdeutsche Landesparlamente"))
+         )
+
+# plotting
+ggplot(df_Herkunft_parl_ostwest, aes(x = date, y = perc, color = origin))+
+  geom_line()+
+  facet_wrap(~parl_ost_west,
+             nrow = 1) +
+  scale_color_manual(values = c("Westdeutschland" = "#E63946", 
+                                "Ostdeutschland" = "#002642",
+                                "Ausland" = "#7EA172"),
+                     breaks = c("Westdeutschland", "Ostdeutschland", "Ausland"),
+                     labels = c("in Westdeutschland",
+                                "in Ostdeutschland",
+                                "im Ausland"),
+                     name = "Geboren") +
+  theme_minimal() +
+  theme(strip.text = element_text(size = 6),
+        axis.text.x = element_text(angle = 45, hjust = 1),
+        panel.spacing = unit(0, "lines"), # Set default panel spacing to 0
+        panel.spacing.x = unit(1, "lines"),
+        legend.position = "bottom") + # Add horizontal spacing between columns
+  labs(x = "",
+       y = "",
+       color = "",
+       caption = "") +
+  scale_y_continuous(labels = scales::percent_format(accuracy = 1),
+                     limits = c(0, 1))+
+  scale_x_date(expand = c(0, 0), 
+               breaks = as.Date(c("1990-01-01", "2000-01-01", "2010-01-01", "2020-01-01")),
+               labels = c("1990", "2000", "2010", "2020"))
+
+```
+
+## Herkunft
+
+Anteil von Ost- und Westdeutschen in den Landesregierungen
+
+```{r herkunft_landesregierungen}
+# wrangling
+df_Herkunft_cab_ostwest <- cabinet.daily %>%
+  mutate(born_germany = case_when(
+    birthplace.state %in% german_states ~ birthplace.state,
+    is.na(birthplace.state) ~ NA_character_,
+    TRUE ~ "Ausland")) %>%
+  left_join(abb.full, by = "landtag.state.abb") %>%
+  mutate(origin = case_when(
+    born_germany == "Ausland" ~ "Ausland",
+    born_germany %in% eastgerman_states ~ "Ostdeutschland",
+    born_germany %in% westgerman_states ~ "Westdeutschland",
+    is.na(born_germany) ~ NA_character_,
+    TRUE ~ "other")) %>%
+  mutate(parl_ost_west = case_when(landtag.state.abb %in% c("bb", "sn", "st", "th", "mv") ~ 
+                                     "Ostdeutsche Landesregierungen",
+                                   TRUE ~ 
+                                     "Westdeutsche Landesregierungen"),
+         parl_ost_west = factor(parl_ost_west, levels = c("Westdeutsche Landesregierungen", 
+                                                          "Ostdeutsche Landesregierungen"))
+         ) %>%
+  group_by(origin, date, parl_ost_west) %>%
+  tally() %>%
+  group_by(date, parl_ost_west) %>%
+  mutate(sum = sum(n),
+         perc = n/sum) %>%
+  arrange(date) %>%
+  filter(!(date < as.Date("1990-12-01") & parl_ost_west == "Ostdeutsche Landesregierungen"),
+         !(date < as.Date("1990-01-01") & parl_ost_west == "Westdeutsche Landesregierungen"),
+         date <= "2020-01-01") %>%
+  filter(!is.na(origin))
+
+ggplot(df_Herkunft_cab_ostwest,
+       aes(x = date, y = perc, color = origin))+
+  geom_line()+
+  facet_wrap(~parl_ost_west,
+             nrow = 1) +
+  scale_color_manual(values = c("Westdeutschland" = "#E63946", 
+                                "Ostdeutschland" = "#002642",
+                                "Ausland" = "#7EA172"),
+                     breaks = c("Westdeutschland", "Ostdeutschland", "Ausland"),
+                     labels = c("in Westdeutschland",
+                                "in Ostdeutschland",
+                                "im Ausland"),
+                     name = "Geboren") +
+  theme_minimal() +
+  theme(strip.text = element_text(size = 6),
+        axis.text.x = element_text(angle = 45, hjust = 1),
+        panel.spacing = unit(0, "lines"), # Set default panel spacing to 0
+        panel.spacing.x = unit(1, "lines"),
+        legend.position = "bottom") + # Add horizontal spacing between columns
+  labs(x = "",
+       y = "",
+       color = "",
+       caption = "") +
+  scale_y_continuous(labels = scales::percent_format(accuracy = 1),
+                     limits = c(0,1))+
+  scale_x_date(expand = c(0, 0), 
+               breaks = as.Date(c("1990-01-01", "2000-01-01", "2010-01-01", "2020-01-01")),
+               labels = c("1990", "2000", "2010", "2020"))
+```
+
+# Ausblick
+
+## Wrap Up
+
+-   Möglichkeiten zur Erweiterung
+    -   historisch, BT, EP
+-   Nutzung der Daten
+    -   zeitnah: GitHub Repo & Shiny App
