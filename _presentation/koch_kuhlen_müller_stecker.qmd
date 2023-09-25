@@ -35,9 +35,9 @@ pp.parl <- import("../_data/output/pp.parl.rds")
 pp.cabinet <- import("../_data/output/pp.cabinet.rds")
 
 # other
-list <- import("../_data/output/list.rds")
-cabinet <- import("../_data/output/cabinet.rds")
-age <- import("../_data/output/list.rds") %>% select(id, birthdate)
+list <- import("../_data/input/list.csv") %>% select(-V1)
+cabinet <- import("../_data/input/cabinet.csv") %>% select(-V1)
+age <- import("../_data/input/list.csv") %>% select(id, birthdate)
 ```
 
 # Deskriptive Repräsentation

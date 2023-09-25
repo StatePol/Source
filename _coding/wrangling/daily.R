@@ -6,13 +6,13 @@ library(tidyverse)
 library(rio)
 
 # download dataset -------------------------------------------------------------
-cabinet <- import("../statepol_dataset/00_dataset/cabinet.csv") %>%
+cabinet <- import("_data/input/cabinet.csv") %>%
   select(-V1)
 
-faction <- import("../statepol_dataset/00_dataset/faction.csv") %>%
+faction <- import("_data/input/faction.csv") %>%
   select(-V1)
 
-list <- import("../statepol_dataset/00_dataset/list.csv") %>%
+list <- import("_data/input/list.csv") %>%
   select(-V1) %>%
   filter(!is.na(term.start))
 

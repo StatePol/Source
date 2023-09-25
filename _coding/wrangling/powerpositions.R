@@ -6,22 +6,22 @@ library(tidyverse)
 library(rio)
 
 # download dataset -------------------------------------------------------------
-board <- import("../statepol_dataset/00_dataset/board.csv") %>%
+board <- import("_data/input/board.csv") %>%
   select(-V1)
 
-cabinet <- import("../statepol_dataset/00_dataset/cabinet.csv") %>%
+cabinet <- import("_data/input/cabinet.csv") %>%
   select(-V1)
 
-committee <- import("../statepol_dataset/00_dataset/committee.csv") %>%
+committee <- import("_data/input/committee.csv") %>%
   select(-V1)
 
-faction <- import("../statepol_dataset/00_dataset/faction.csv") %>%
+faction <- import("_data/input/faction.csv") %>%
   select(-V1)
 
-list <- import("../statepol_dataset/00_dataset/list.csv") %>%
+list <- import("_data/input/list.csv") %>%
   select(-V1)
 
-presidium <- import("../statepol_dataset/00_dataset/presidium.csv") %>%
+presidium <- import("_data/input/presidium.csv") %>%
   select(-V1)
 
 # daily
@@ -81,14 +81,6 @@ pp.cabinet <- cabinet.daily %>%
          landtag.state.abb, electoralperiod, date)
 
 # 2) export data ---------------------------------------------------------------
-
-# base dataset 
-export(board, "_data/output/board.rds")
-export(cabinet, "_data/output/cabinet.rds")
-export(committee, "_data/output/committee.rds")
-export(faction, "_data/output/faction.rds")
-export(list, "_data/output/list.rds")
-export(presidium, "_data/output/presidium.rds")
 
 # powerposition data
 export(pp.parl, "_data/output/pp.parl.rds")
