@@ -12,8 +12,12 @@ mandate <- list %>%
   select(id, name.wikitag, constituency, mandate, voteshare, landtag.state,
          landtag.state.abb, electoralperiod, term.start, term.end) %>%
   mutate_if(is.character, ~na_if(., ''))
-  
-  
+
+# cabinet dataframe
+new_cab <- cabinet %>%
+  select(id, name.wikitag, ministry, ministry.clean, position, position.clean,
+         cabinet, party, economy:electoralperiod)
+
 # distinct dataframe for parliment
 legislative <- list %>%
   rename(birthplace.latitude = birthplace.lat.geocode,
@@ -44,4 +48,4 @@ mutate_if(is.character, ~na_if(., 'NA')) %>%
 # export
 export(mandate, "_data/output/mandate.csv")
 export(politicians, "_data/output/politicians.csv")
-
+export(new_cab, "_data/output/cabinet.csv")
