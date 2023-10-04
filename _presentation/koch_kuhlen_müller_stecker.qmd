@@ -1,4 +1,5 @@
 ---
+format: revealjs
 title: "StatePol"
 subtitle: "*Deskriptive Repräsentation von Gender, Alter und Herkunft in den Landesparlamenten und -regierungen*"
 author:
@@ -14,10 +15,12 @@ author:
   - name: Christian Stecker
     orcid: 0000-0001-9577-7151
     email: christian.stecker@tu-darmstadt.de
-format: revealjs
-editor: visual
+email-obfuscation: javascript
+logo: _pngs/hex_statepol.png
 self-contained: true
 ---
+
+
 
 ```{r packages, echo=FALSE}
 # packages
@@ -48,14 +51,14 @@ age <- import("../_data/input/list.csv") %>% select(id, birthdate)
 ::: {.column width="60%"}
 <img src="_pngs/tagesschau.png" style="max-width: 100%; height: auto;"/>
 :::
-
+  
 ::: {.column width="40%"}
 <img src="_pngs/norris_lovenduski.png" style="max-width: 100%; height: auto;"/>
 :::
 :::
-
+  
 ## Bestehende Datenquellen
-
+  
 -   Datenbanken
     -   legislatoR ([Munzert & Göbel, 2022](https://github.com/saschagobel/legislatoR))
     -   Parliaments Day-by-Day ([Turner-Zwinkels et al., 2021](https://onlinelibrary.wiley.com/doi/epdf/10.1111/lsq.12359))
@@ -76,15 +79,15 @@ age <- import("../_data/input/list.csv") %>% select(id, birthdate)
 -   Landesparlamente
     -   111 Wahlperioden in den 16 Landesparlamenten seit 1990
     -   6977 individuelle Abgeordnete (mit Funktionen)
-        -   21.517.423 tagesweise Beobachtungen
+    -   21.517.423 tagesweise Beobachtungen
 -   Landesregierungen
     -   148 Kabinette
     -   920 individuelle Kabinettsmitglieder (mit Funktionen)
-        -   2.223.995 tagesweise Beobachtungen
+    -   2.223.995 tagesweise Beobachtungen
 
-## Struktur
+## 
 
-![](_pngs/datensatz_struktur.png){fig-align="center"}
+![](_pngs/datensatz_struktur.png){.absolute top=-20, left=100}
 
 ## Woher kommen die Daten? {.scrollable}
 
@@ -214,50 +217,50 @@ pp.cabinet.gendershare <- pp.cabinet %>%
 
 # plotting
 ggplot() +
-    geom_smooth(data = pp.cabinet.gendershare,
-                se = FALSE,
-                linewidth = .8,
-                aes(x = date, y = percentage, color = position.clean)) +
-    geom_smooth(data = pp.parl.gendershare,
-                se = FALSE,
-                linewidth = .8,
-                aes(x = date, y = percentage, color = position)) +
-    geom_point(data = pp.cabinet.gendershare,
-               size = .05,
-               alpha = .01,
-               aes(x = date, y = percentage, color = position.clean)) +
-    geom_point(data = pp.parl.gendershare,
-                size = .05,
-               alpha = .01,
-               aes(x = date, y = percentage, color = position)) +
-    geom_smooth(data = gender.comp,
-                se = FALSE,
-                linewidth = .5,
-                linetype = "dotted",
-                aes(x = date, y = percentage, color = Durchschnitt)) +
-    geom_hline(yintercept = .5, size = .2, linetype = "dashed") +
-    scale_color_manual(values = c("Insg." = "black",
-                                  "Ausschussvorsitz" = "#002642",
-                                  "Fraktionsführung" = "#E59500",
-                                  "Präsidium" = "#107E7D",
-                                  "Minister:in" = "#E63946",
-                                  "Regierungsoberhaupt" = "#7EA172"),
-                       breaks = c("Insg.", "Präsidium", "Ausschussvorsitz", "Fraktionsführung", "Regierungsoberhaupt", "Minister:in")) +
-    theme_minimal() +
-    theme(plot.margin = margin(t = 2.5, r = 5.5, b = 0, l = 5.5, unit = "pt"), 
-          plot.title = element_blank(), 
-          plot.subtitle = element_blank(),
-          plot.caption = element_blank()) +
-    labs(x = "",
-         y = "",
-         color = "") +
-    guides(color = guide_legend(override.aes = list(linetype = c("dotted", rep("solid", 5))))) +
-    scale_y_continuous(breaks = seq(0, 0.6, 0.1),
-                       labels = scales::percent_format(accuracy = 1)) +
-    scale_x_date(expand = c(0, 0), 
-                 breaks = as.Date(c("1990-01-01", "2000-01-01", "2010-01-01", "2020-01-01")),
-                 labels = c("1990", "2000", "2010", "2020")) +
-    coord_cartesian(ylim = c(0, 0.55))
+  geom_smooth(data = pp.cabinet.gendershare,
+              se = FALSE,
+              linewidth = .8,
+              aes(x = date, y = percentage, color = position.clean)) +
+  geom_smooth(data = pp.parl.gendershare,
+              se = FALSE,
+              linewidth = .8,
+              aes(x = date, y = percentage, color = position)) +
+  geom_point(data = pp.cabinet.gendershare,
+             size = .05,
+             alpha = .01,
+             aes(x = date, y = percentage, color = position.clean)) +
+  geom_point(data = pp.parl.gendershare,
+             size = .05,
+             alpha = .01,
+             aes(x = date, y = percentage, color = position)) +
+  geom_smooth(data = gender.comp,
+              se = FALSE,
+              linewidth = .5,
+              linetype = "dotted",
+              aes(x = date, y = percentage, color = Durchschnitt)) +
+  geom_hline(yintercept = .5, size = .2, linetype = "dashed") +
+  scale_color_manual(values = c("Insg." = "black",
+                                "Ausschussvorsitz" = "#002642",
+                                "Fraktionsführung" = "#E59500",
+                                "Präsidium" = "#107E7D",
+                                "Minister:in" = "#E63946",
+                                "Regierungsoberhaupt" = "#7EA172"),
+                     breaks = c("Insg.", "Präsidium", "Ausschussvorsitz", "Fraktionsführung", "Regierungsoberhaupt", "Minister:in")) +
+  theme_minimal() +
+  theme(plot.margin = margin(t = 2.5, r = 5.5, b = 0, l = 5.5, unit = "pt"), 
+        plot.title = element_blank(), 
+        plot.subtitle = element_blank(),
+        plot.caption = element_blank()) +
+  labs(x = "",
+       y = "",
+       color = "") +
+  guides(color = guide_legend(override.aes = list(linetype = c("dotted", rep("solid", 5))))) +
+  scale_y_continuous(breaks = seq(0, 0.6, 0.1),
+                     labels = scales::percent_format(accuracy = 1)) +
+  scale_x_date(expand = c(0, 0), 
+               breaks = as.Date(c("1990-01-01", "2000-01-01", "2010-01-01", "2020-01-01")),
+               labels = c("1990", "2000", "2010", "2020")) +
+  coord_cartesian(ylim = c(0, 0.55))
 ```
 
 ## Alter
@@ -294,15 +297,15 @@ ggplot()+
   geom_line(data = age.party, aes(x = date, y = mean_age, color = fraction.id))+
   geom_smooth(data = age.comp, se = FALSE, size = 0.5, linetype = "dotted",
               aes(x = date, y = mean_age, color = average))+
-    scale_color_manual(values = c("Insg." = "#000000", 
-                                  "Durchschnitt" = "black",
-                                  "SPD" = "#E3000F", 
-                                  "CDU/CSU" = "#000000",
-                                  "GRÜNE" = "#1AA037", 
-                                  "AfD" = "#0489DB",
-                                  "FDP" = "#FFEF00", 
-                                  "LINKE" = "deeppink"),
-                       breaks = c("Insg.", "CDU/CSU", "SPD", "GRÜNE", "LINKE", "FDP", "AfD")) +
+  scale_color_manual(values = c("Insg." = "#000000", 
+                                "Durchschnitt" = "black",
+                                "SPD" = "#E3000F", 
+                                "CDU/CSU" = "#000000",
+                                "GRÜNE" = "#1AA037", 
+                                "AfD" = "#0489DB",
+                                "FDP" = "#FFEF00", 
+                                "LINKE" = "deeppink"),
+                     breaks = c("Insg.", "CDU/CSU", "SPD", "GRÜNE", "LINKE", "FDP", "AfD")) +
   theme_minimal()+
   theme(plot.margin = margin(t = 2.5, r = 5.5, b = 0, l = 5.5, unit = "pt"),
         plot.title = element_blank(),
@@ -406,7 +409,7 @@ df_Herkunft_parl_ostwest <- list %>%
   mutate(parl_ost_west = factor(parl_ost_west,
                                 levels = c("Westdeutsche Landesparlamente",
                                            "Ostdeutsche Landesparlamente"))
-         )
+  )
 
 # plotting
 ggplot(df_Herkunft_parl_ostwest, aes(x = date, y = perc, color = origin))+
@@ -463,7 +466,7 @@ df_Herkunft_cab_ostwest <- cabinet.daily %>%
                                      "Westdeutsche Landesregierungen"),
          parl_ost_west = factor(parl_ost_west, levels = c("Westdeutsche Landesregierungen", 
                                                           "Ostdeutsche Landesregierungen"))
-         ) %>%
+  ) %>%
   group_by(origin, date, parl_ost_west) %>%
   tally() %>%
   group_by(date, parl_ost_west) %>%
@@ -510,6 +513,11 @@ ggplot(df_Herkunft_cab_ostwest,
 ## Wrap Up
 
 -   Möglichkeiten zur Erweiterung
-    -   historisch, BT, EP
--   Nutzung der Daten
-    -   zeitnah: GitHub Repo & Shiny App
+    - historisch
+    - Bundesebene
+    - EU
+    - Landeslisten
+
+## 
+
+![](_pngs/website_screenshot.png){fig-align="center"}
