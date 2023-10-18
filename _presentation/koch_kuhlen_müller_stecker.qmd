@@ -516,7 +516,6 @@ ggplot(df_Herkunft_cab_ostwest,
     - historisch
     - Bundesebene
     - EU
-    - Landeslisten
 
 ## 
 

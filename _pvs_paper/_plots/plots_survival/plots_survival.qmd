@@ -1,0 +1,177 @@
+---
+title: "StatePol Paper"
+subtitle: "Plots zur Verweildauer der MdL's"
+author:
+  - name: Elias Koch
+    orcid: 0009-0000-3341-219X
+    email: elias.koch@student.hu-berlin.de
+  - name: Daniel Kuhlen
+    orcid: 0009-0009-4863-6458
+    email: kuhlenda@hu-berlin.de
+  - name: Jochen Müller
+    orcid: 0000-0003-4021-7442
+    email: jochen.mueller@uni-greifswald.de
+  - name: Christian Stecker
+    orcid: 0000-0001-9577-7151
+    email: christian.stecker@tu-darmstadt.de
+format:
+  html:
+    code-fold: true
+    code-tools: true
+    toc: true
+execute:
+  warning: false
+fig-align: "center"
+self-contained: true
+---
+
+# Packages
+
+```{r packages}
+pacman::p_load(tidyverse,
+               rio,
+               scales)
+```
+
+# Data
+
+```{r data}
+politician <- 
+  read.csv("https://raw.githubusercontent.com/StatePol/Database/main/_data/politicians.csv")
+
+mandate <- 
+  read.csv("https://raw.githubusercontent.com/StatePol/Database/main/_data/mandate.csv") %>%
+  filter(landtag.state.abb == "st"|
+         landtag.state.abb == "nw")
+
+ppg <- 
+  read.csv("https://raw.githubusercontent.com/StatePol/Database/main/_data/faction.csv") %>%
+  filter(landtag.state.abb == "st"|
+         landtag.state.abb == "nw")
+
+cabinet <- 
+  read.csv("https://raw.githubusercontent.com/StatePol/Database/main/_data/cabinet.csv") %>%
+  filter(landtag.state.abb == "st"|
+         landtag.state.abb == "nw")
+```
+
+
+```{r wrangling_parliment}
+# dataset with initial mps
+terms <- mandate %>%
+  distinct(landtag.state.abb, electoralperiod, term.start, term.end)
+
+initial_mps <- ppg %>%
+  left_join(terms, by = c("landtag.state.abb", "electoralperiod")) %>%
+  filter(start.date == term.start) %>%
+  mutate(initial_id = paste(id, fraction.id, sep = "_"))
+
+# create daily ppg
+ppg_daily <- ppg %>%
+  mutate(start.date = as.Date(start.date),
+         end.date = as.Date(end.date)) %>%
+  mutate(date = map2(start.date, end.date, seq, by = 1, units = "day")) %>%
+  unnest(date) %>%
+  mutate(initial_id = paste(id, fraction.id, sep = "_")) %>%
+  mutate(is_initial_mp = if_else(initial_id %in% initial_mps$initial_id, 1, 0))
+
+
+# percentage of initial mps
+percentage_parl <- ppg_daily %>%
+  group_by(landtag.state.abb, electoralperiod, date) %>%
+  summarise(total_mps = n(),
+            initial_mps = sum(is_initial_mp)) %>%
+  mutate(percentage_initial = (initial_mps / total_mps) * 100,
+         type = "Parlament")
+```
+
+
+```{r wrangling_cabinet}
+# dataset with initial ministers
+cabinets <- cabinet %>%
+  filter(position.clean == "Regierungsoberhaupt") %>%
+  distinct(cabinet, start.date) %>%
+  filter(start.date != "2021-10-26") %>%
+  rename(cabinet.start = start.date)
+  
+# initial ministers
+initial_ministers <- cabinet %>%
+  left_join(cabinets, by = "cabinet") %>% 
+  filter(start.date == cabinet.start) %>%
+  mutate(initial_id = paste(id, party, sep = "_"))
+
+# create daily ppg
+cabinet_daily <- cabinet %>%
+  mutate(start.date = as.Date(start.date),
+         end.date = as.Date(end.date)) %>%
+  mutate(date = map2(start.date, end.date, seq, by = 1, units = "day")) %>%
+  unnest(date) %>%
+  mutate(initial_id = paste(id, party, sep = "_")) %>%
+  mutate(is_initial_mp = if_else(initial_id %in% initial_ministers$initial_id, 1, 0))
+
+# percentage of initial mps
+percentage_cabinet <- cabinet_daily %>%
+  group_by(landtag.state.abb, electoralperiod, date) %>%
+  summarise(total_mps = n(),
+            initial_mps = sum(is_initial_mp)) %>%
+  mutate(percentage_initial = (initial_mps / total_mps) * 100,
+         type = "Landesregierung")
+
+```
+
+
+```{r}
+percentage_df <- bind_rows(percentage_parl, percentage_cabinet) %>%
+  left_join(terms, by = c("landtag.state.abb", "electoralperiod")) %>%
+  mutate(
+    term.start = as.Date(term.start),
+    term.end = as.Date(term.end),
+    type = factor(type, levels = c("Parlament", "Landesregierung")),
+    landtag.state.abb = case_when(
+      landtag.state.abb == "nw" ~ "Nordrhein-Westfalen",
+      landtag.state.abb == "st" ~ "Sachsen-Anhalt",
+      TRUE ~ landtag.state.abb
+    ),
+    electoralperiod = as.factor(electoralperiod)
+  )
+
+term_starts <- percentage_df %>%
+  select(landtag.state.abb, type, term.start) %>%
+  distinct()
+
+# plotting
+ggplot(data = percentage_df, aes(x = date, y = percentage_initial, color = electoralperiod)) +
+  geom_line() +
+  geom_vline(data = term_starts, aes(xintercept = as.Date(term.start)), 
+             linetype="dashed", color = "black", size =.3) +
+  
+  facet_grid(rows = vars(type), cols = vars(landtag.state.abb), switch = "y") +
+  theme_bw() +
+  theme(strip.background = element_blank(),
+        axis.title.x = element_blank(),
+        axis.title.y = element_blank(),
+        strip.placement = "outside")
+
+# plotting
+plot_survival <- ggplot(data = percentage_df, aes(x = date, y = percentage_initial)) +
+  geom_line(aes(color = electoralperiod)) +
+  scale_color_manual(values = rep("black", length(unique(percentage_df$electoralperiod)))) +
+  geom_vline(data = term_starts, aes(xintercept = as.Date(term.start)), 
+             linetype="dashed", color = "black", size =.3) +
+  facet_grid(rows = vars(type), cols = vars(landtag.state.abb), switch = "y") +
+  theme_bw() +
+  theme(text = element_text(family = "Times New Roman"),
+        strip.background = element_blank(),
+        axis.title.x = element_blank(),
+        axis.title.y = element_blank(),
+        strip.placement = "outside",
+        legend.position = "none") +
+  scale_y_continuous(labels = percent_format(scale = 1))
+
+# save plot
+ggsave("plots/survival.png", plot = plot_survival, dpi = 500, width = 200, height = 120, units = "mm")
+
+# display plot
+plot_survival
+```
+

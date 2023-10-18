@@ -297,7 +297,9 @@ df_Herkunft_cab_ostwest <- cabinet.daily %>%
   mutate(parl_ost_west = case_when(landtag.state.abb %in% c("bb", "sn", "st", "th", "mv") ~ 
                                      "Ostdeutsche Landesregierungen",
                                    T ~ 
-                                     "Westdeutsche Landesregierungen")) %>%
+                                     "Westdeutsche Landesregierungen"),
+         parl_ost_west = factor(parl_ost_west, levels = c("Westdeutsche Landesregierungen", 
+                                                          "Ostdeutsche Landesregierungen"))) %>%
   group_by(origin, date, parl_ost_west) %>%
   tally() %>%
   group_by(date, parl_ost_west) %>%
@@ -370,7 +372,9 @@ df_Herkunft_parl_ostwest <- list %>%
   mutate(parl_ost_west = case_when(landtag.state.abb %in% c("bb", "sn", "st", "th", "mv") ~ 
                                      "Ostdeutsche Landesparlamente",
                                    T ~ 
-                                     "Westdeutsche Landesparlamente")) %>%
+                                     "Westdeutsche Landesparlamente"),
+         parl_ost_west = factor(parl_ost_west, levels = c("Westdeutsche Landesparlamente", 
+                                                          "Ostdeutsche Landesparlamente"))) %>%
   group_by(origin, date, parl_ost_west) %>%
   tally() %>%
   group_by(date, parl_ost_west) %>%
@@ -414,7 +418,7 @@ plot.parl.ost_west <- ggplot(df_Herkunft_parl_ostwest,
 
 # save plot
 ggsave(plot = plot.parl.ost_west,
-       "plots/neue Plots/regional side-by-side/Parl_NUR_OSTWEST.png",
+       "plots/ostwest_landesparlamente.png",
        dpi = 500, width = 180, height = 135, units = "mm")
 
 # display plot
@@ -424,21 +428,47 @@ plot.parl.ost_west
 ## Anteil von Ost- und Westdeutschen in Landesregierungen
 
 ```{r herkunft_ost_west_cabinet}
-plot.minister.ost_west <- ggplot(df_Herkunft_cab_ostwest, 
-                                 aes(x = date, y = perc, color = origin))+
-  geom_line()+
-  facet_wrap(~parl_ost_west,
-             nrow = 1) +
-  scale_color_manual(values = c("anderes west bl" = "#E63946", 
-                                "anderes ost bl" = "#002642",
+# wrangling
+df_Herkunft_cab_ostwest <- cabinet.daily %>%
+  mutate(born_germany = case_when(
+    birthplace.state %in% german_states ~ birthplace.state,
+    is.na(birthplace.state) ~ NA_character_,
+    TRUE ~ "Ausland")) %>%
+  left_join(abb.full, by = "landtag.state.abb") %>%
+  mutate(origin = case_when(
+    born_germany == "Ausland" ~ "Ausland",
+    born_germany %in% eastgerman_states ~ "Ostdeutschland",
+    born_germany %in% westgerman_states ~ "Westdeutschland",
+    is.na(born_germany) ~ NA_character_,
+    TRUE ~ "other")) %>%
+  mutate(parl_ost_west = case_when(landtag.state.abb %in% c("bb", "sn", "st", "th", "mv") ~ 
+                                     "Ostdeutsche Landesregierungen",
+                                   TRUE ~ 
+                                     "Westdeutsche Landesregierungen"),
+         parl_ost_west = factor(parl_ost_west, levels = c("Westdeutsche Landesregierungen", 
+                                                          "Ostdeutsche Landesregierungen"))
+  ) %>%
+  group_by(origin, date, parl_ost_west) %>%
+  tally() %>%
+  group_by(date, parl_ost_west) %>%
+  mutate(sum = sum(n),
+         perc = n/sum) %>%
+  arrange(date) %>%
+  filter(!(date < as.Date("1990-12-01") & parl_ost_west == "Ostdeutsche Landesregierungen"),
+         !(date < as.Date("1990-01-01") & parl_ost_west == "Westdeutsche Landesregierungen"),
+         date <= "2020-01-01") %>%
+  filter(!is.na(origin))
+
+plot.minister.ost_west <- ggplot(df_Herkunft_cab_ostwest, aes(x = date, y = perc, color = origin)) +
+  geom_line() +
+  facet_wrap(~parl_ost_west, nrow = 1) +
+  scale_color_manual(values = c("Westdeutschland" = "#E63946", 
+                                "Ostdeutschland" = "#002642",
                                 "Ausland" = "#7EA172"),
-                     breaks = c("homeland", "anderes west bl", "anderes ost bl", "Ausland"),
-                     labels = c("\nim selben Bundesland \n",
-                                "in Westdeutschland",
-                                "in Ostdeutschland",
-                                "im Ausland"),
+                     breaks = c("Westdeutschland", "Ostdeutschland", "Ausland"),
+                     labels = c("in Westdeutschland", "in Ostdeutschland", "im Ausland"),
                      name = "Geboren") +
-  theme_bw() +
+  theme_bw() +  # Use bw theme
   theme(text = element_text(family = "Times New Roman"),
         strip.text = element_text(size = 6),
         axis.text.x = element_text(angle = 45, hjust = 1),
@@ -449,8 +479,8 @@ plot.minister.ost_west <- ggplot(df_Herkunft_cab_ostwest,
        y = "",
        color = "",
        caption = "") +
-  scale_y_continuous(labels = scales::percent_format(accuracy = 1),
-                     limits = c(0,1))+
+  scale_y_continuous(labels = scales::percent_format(accuracy = 1), 
+                     limits = c(0,1)) +
   scale_x_date(expand = c(0, 0), 
                breaks = as.Date(c("1990-01-01", "2000-01-01", "2010-01-01", "2020-01-01")),
                labels = c("1990", "2000", "2010", "2020"))
@@ -458,7 +488,7 @@ plot.minister.ost_west <- ggplot(df_Herkunft_cab_ostwest,
 
 # save plot
 ggsave(plot = plot.minister.ost_west,
-       "plots/neue Plots/regional side-by-side/Kabinette_NUR_OSTWEST.png",
+       "plots/ostwest_landesregierungen.png",
        dpi = 500, width = 180, height = 135, units = "mm")
 
 # display plot
